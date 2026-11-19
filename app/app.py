@@ -1,8 +1,8 @@
 import os
 import platform
+import cryptography
 import flask
 import requests
-import yaml
 from flask import Flask, jsonify
 
 app = Flask(__name__)
@@ -32,7 +32,7 @@ def inventory():
             "packages": {
                 "flask": flask.__version__,
                 "requests": requests.__version__,
-                "pyyaml": yaml.__version__,
+                "cryptography": cryptography.__version__,
             }
         }
     ), 200

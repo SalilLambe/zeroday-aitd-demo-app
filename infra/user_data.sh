@@ -6,12 +6,13 @@ dnf install -y docker git python3-pip
 systemctl enable --now docker
 systemctl enable --now amazon-ssm-agent
 
-# Clone the demo repo and run the vulnerable container on port 8080
+# Clone the demo repo
 mkdir -p /opt/demo-app
 git clone "${github_repo_url}" /opt/demo-app
 
-# Also install vulnerable Python packages on the host OS layer so Wiz host scanning + SSM patching have targets
-pip3 install --no-cache-dir -r /opt/demo-app/app/requirements.txt
+# Install vulnerable Python packages into a dedicated venv (avoids colliding with RPM-managed Python packages)
+python3 -m venv /opt/demo-venv
+/opt/demo-venv/bin/pip install --no-cache-dir -r /opt/demo-app/app/requirements.txt
 
 cd /opt/demo-app/app
 docker build -t zeroday-aitd-demo-app:v1 .
