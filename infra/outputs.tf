@@ -28,12 +28,12 @@ output "ecs_cluster_arn" {
   value       = aws_ecs_cluster.wiz_outpost_lite.arn
 }
 
-output "default_vpc_id" {
-  description = "Default VPC ID"
-  value       = data.aws_vpc.default.id
+output "vpc_id" {
+  description = "Demo VPC ID"
+  value       = aws_vpc.demo.id
 }
 
-output "default_subnet_ids" {
-  description = "Default Subnet IDs"
-  value       = data.aws_subnets.default.ids
+output "public_subnet_ids" {
+  description = "Public Subnet IDs (ready for ECS Outpost Lite in Component 2)"
+  value       = aws_subnet.public[*].id
 }

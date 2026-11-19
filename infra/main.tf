@@ -12,16 +12,68 @@ provider "aws" {
   region = var.aws_region
 }
 
-# Use default VPC & subnets so this deploys cleanly in any AWS sandbox
-data "aws_vpc" "default" {
-  default = true
+data "aws_availability_zones" "available" {
+  state = "available"
 }
 
-data "aws_subnets" "default" {
-  filter {
-    name   = "vpc-id"
-    values = [data.aws_vpc.default.id]
+# Self-contained VPC + 2 Public Subnets (works in any region/sandbox + ready for ECS Outpost Lite)
+resource "aws_vpc" "demo" {
+  cidr_block           = "10.20.0.0/16"
+  enable_dns_hostnames = true
+  enable_dns_support   = true
+
+  tags = {
+    Name        = "zeroday-aitd-demo-vpc"
+    Project     = "Zero-Day-AITD-Showcase"
+    Owner       = var.owner_tag
+    Environment = "sandbox"
   }
+}
+
+resource "aws_internet_gateway" "demo" {
+  vpc_id = aws_vpc.demo.id
+
+  tags = {
+    Name    = "zeroday-aitd-demo-igw"
+    Project = "Zero-Day-AITD-Showcase"
+    Owner   = var.owner_tag
+  }
+}
+
+resource "aws_subnet" "public" {
+  count                   = 2
+  vpc_id                  = aws_vpc.demo.id
+  cidr_block              = cidrsubnet(aws_vpc.demo.cidr_block, 8, count.index)
+  availability_zone       = data.aws_availability_zones.available.names[count.index]
+  map_public_ip_on_launch = true
+
+  tags = {
+    Name        = "zeroday-aitd-demo-public-${count.index + 1}"
+    Project     = "Zero-Day-AITD-Showcase"
+    Owner       = var.owner_tag
+    Environment = "sandbox"
+  }
+}
+
+resource "aws_route_table" "public" {
+  vpc_id = aws_vpc.demo.id
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.demo.id
+  }
+
+  tags = {
+    Name    = "zeroday-aitd-demo-public-rt"
+    Project = "Zero-Day-AITD-Showcase"
+    Owner   = var.owner_tag
+  }
+}
+
+resource "aws_route_table_association" "public" {
+  count          = 2
+  subnet_id      = aws_subnet.public[count.index].id
+  route_table_id = aws_route_table.public.id
 }
 
 # Latest Amazon Linux 2023 AMI (includes AWS CLI v2 and SSM Agent by default)
@@ -44,7 +96,7 @@ data "aws_ami" "al2023" {
 resource "aws_security_group" "demo_app" {
   name        = "zeroday-aitd-demo-app-sg"
   description = "Allow HTTP 8080 to Zero-Day AITD Demo App"
-  vpc_id      = data.aws_vpc.default.id
+  vpc_id      = aws_vpc.demo.id
 
   ingress {
     description = "Demo App HTTP"
@@ -107,7 +159,7 @@ resource "aws_iam_instance_profile" "demo_ec2_profile" {
 resource "aws_instance" "demo_app" {
   ami                         = data.aws_ami.al2023.id
   instance_type               = var.instance_type
-  subnet_id                   = data.aws_subnets.default.ids[0]
+  subnet_id                   = aws_subnet.public[0].id
   vpc_security_group_ids      = [aws_security_group.demo_app.id]
   iam_instance_profile        = aws_iam_instance_profile.demo_ec2_profile.name
   associate_public_ip_address = true
